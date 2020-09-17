@@ -1,0 +1,44 @@
+#!/bin/bash
+PROJECT=`php -r "echo dirname(dirname(dirname(dirname(realpath('$0')))));"`
+STAGED_FILES_CMD=`git diff --cached --name-only --diff-filter=ACMR HEAD | grep \\\\.php`
+
+# This checks if a list of files was given. If so, it will be used instead of parsing the files in the index
+if [ "$#" -eq 1 ]
+then
+  oIFS=$IFS
+  IFS='
+  '
+  SFILES="$1"
+  IFS=$oIFS
+fi
+SFILES=${SFILES:-$STAGED_FILES_CMD}
+
+echo "Running PHP Linter..."
+for FILE in $SFILES
+do
+  php -l -d display_errors=0 $PROJECT/$FILE
+  if [ $? != 0 ]
+  then
+    echo "File $FILE contains PHP errors. Fix before commit."
+    exit 1
+  fi
+  FILES="$FILES $PROJECT/$FILE"
+done
+
+if [ "$FILES" != "" ]
+then
+  echo "Running PHPCS"
+  ./vendor/bin/phpcs
+  if [ $? != 0 ]
+  then
+    echo "Code style / security issues detected. Fix the errors before commit!"
+    echo "Run the following command to list issues:"
+    echo "  ./vendor/bin/phpcs"
+    echo "on run"
+    echo "  ./vendor/bin/phpcbf"
+    echo "to fix issues automatically (wherever possible)."
+    exit 1
+  fi
+fi
+
+exit $?
